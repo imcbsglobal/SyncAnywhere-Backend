@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# FastAPI / Uvicorn
+*.log
+
+# macOS / Windows system files
+.DS_Store
+Thumbs.db
+
+# Editor-specific
+.vscode/
+.idea/
+
+# PyInstaller
+*.spec
+dist/
+build/
+
+# Environment variables / secrets
+.env
+*.env
+.env.*
+
+# Database or temp files
+*.db
+*.sqlite3
+
+# Cache
+.cache/
+*.egg-info/
+.eggs/
