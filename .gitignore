@@ -39,3 +39,36 @@ build/
 .cache/
 *.egg-info/
 .eggs/
+
+
+# EXE or Windows binary builds
+*.exe
+*.dll
+*.manifest
+*.spec
+
+# PyInstaller output
+SyncService.exe
+
+# Logs or runtime files
+*.log
+logs/
+
+# Backup or temp files
+*.bak
+*.tmp
+*.swp
+
+# Compiled C files (sometimes created by PyInstaller)
+*.c
+*.so
+
+# Build script outputs
+__pycache__/
+dist/
+build/
+
+# Installer cache
+pip-wheel-metadata/
+
+*.zip
