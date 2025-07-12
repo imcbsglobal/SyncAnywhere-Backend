@@ -7,5 +7,5 @@ class PairCheckInput(BaseModel):
     password: str
 
 class LoginInput(BaseModel):
-    username: str
+    userid: str
     password: str

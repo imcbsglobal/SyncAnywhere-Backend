@@ -8,7 +8,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
 # Hardcoded DB credentials 
 DB_USER = "dba"
-DB_PASSWORD = "sql"
+DB_PASSWORD = "(*$^)"
 
 def load_config():
     with open(CONFIG_PATH) as f:
