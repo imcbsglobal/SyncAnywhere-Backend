@@ -85,14 +85,13 @@ def data_download(request: Request):
         cursor = conn.cursor()
 
         # ✅ Step 3: Fetch acc_master data
-        cursor.execute("SELECT code, name, super_code, place FROM acc_master WHERE super_code = 'SUNCR'")
+        cursor.execute("SELECT code, name, place FROM acc_master WHERE super_code = 'SUNCR'")
         master_rows = cursor.fetchall()
         master_data = [
             {
                 "code": row[0],
                 "name": row[1],
-                "super_code": row[2],
-                "place": row[3]
+                "place": row[2]
             }
             for row in master_rows
         ]
