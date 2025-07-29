@@ -1,11 +1,11 @@
 # app/routes/sync.py
-
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Body
 from jose import JWTError, jwt
 from app.schemas import PairCheckInput, LoginInput
 from app.db_utils import get_connection, load_config
 from app.token_utils import create_access_token, SECRET_KEY, ALGORITHM
 from datetime import timedelta
+import traceback
 
 router = APIRouter()
 
@@ -137,3 +137,82 @@ def data_download(request: Request):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+
+
+@router.post("/upload-orders")
+def upload_orders(request: Request, payload: dict = Body(...)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token missing")
+    token = auth_header.split(" ")[1]
+
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    try:
+        print("Connecting to DB...")
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT MAX(slno) FROM acc_purchaseordermaster")
+        max_slno = int(cursor.fetchone()[0] or 0)
+
+        cursor.execute("SELECT MAX(orderno) FROM acc_purchaseordermaster")
+        max_orderno = int(cursor.fetchone()[0] or 0)
+
+        print(" Processing payload orders...")
+
+        orders = payload.get("orders", [])
+
+        print(f"Received {len(orders)} orders")
+        for order in orders:
+            # Generate new slno and orderno
+            max_slno += 1
+            max_orderno += 1
+            print(f"Processing Order: slno={max_slno}, orderno={max_orderno}")
+
+            supplier_code = order.get("supplier_code")
+            otype = order.get("otype", "O")
+            userid = order.get("userid")
+            orderdate = order.get("order_date")
+
+            print("Inserting into acc_purchaseordermaster...")
+            cursor.execute("""
+                INSERT INTO acc_purchaseordermaster (slno, orderno, supplier, otype, userid, orderdate)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (max_slno, max_orderno, supplier_code, otype, userid, orderdate))
+
+            print("Getting max detail slno...")
+            cursor.execute("SELECT MAX(slno) FROM acc_purchaseorderdetails")
+            max_detail_slno = int(cursor.fetchone()[0] or 0)
+
+            for product in order.get("products", []):
+                max_detail_slno += 1
+                print(f"Inserting product: {product}")
+                cursor.execute("""
+                    INSERT INTO acc_purchaseorderdetails 
+                    (masterslno, slno, barcode, qty, rate, mrp)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    max_slno,
+                    max_detail_slno,
+                    product.get("barcode"),
+                    product.get("quantity"),
+                    product.get("rate"),
+                    product.get("mrp")
+                ))
+        
+        print("Committing transaction...")
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        print("Orders uploaded successfully")
+        return {"status": "success", "message": "Orders uploaded successfully"}
+
+    except Exception as e:
+        print("❌ Exception occurred while uploading orders:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
