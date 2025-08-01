@@ -1,28 +1,62 @@
+# build.py
 import subprocess
 import os
+import shutil
 
-APP_NAME = "SyncService"
-ENTRY_SCRIPT = "main.py"
-DIST_PATH = "."  # Output in current folder
+DIST_PATH = "."  # Output the EXE in current folder
+CONFIG_FILE = "config.json"
 
-print("🛠️  Building .exe for SyncAnywhere...")
+APPS = [
+    {
+        "name": "SyncAnywhere",
+        "entry": "start_server.py"
+    },
+    {
+        "name": "SyncService",
+        "entry": "run_service.py"
+    }
+]
 
-# Clean previous build (optional)
-if os.path.exists("build"):
-    subprocess.run(["rmdir", "/S", "/Q", "build"], shell=True)
-if os.path.exists("__pycache__"):
-    subprocess.run(["rmdir", "/S", "/Q", "__pycache__"], shell=True)
-if os.path.exists("{}.spec".format(APP_NAME)):
-    os.remove("{}.spec".format(APP_NAME))
+print("🧹 Cleaning previous builds...")
 
-# Run PyInstaller
-subprocess.run([
-    "pyinstaller",
-    ENTRY_SCRIPT,
-    "--onefile",
-    "--name", APP_NAME,
-    "--distpath", DIST_PATH,
-    "--paths", "./app"
-])
+# Clean common build files
+for folder in ["build", "__pycache__"]:
+    if os.path.exists(folder):
+        shutil.rmtree(folder)
 
-print("✅ Done! Check ./SyncService.exe")
+# Remove old spec files and EXEs
+for app in APPS:
+    spec_file = f"{app['name']}.spec"
+    exe_file = os.path.join(DIST_PATH, f"{app['name']}.exe")
+    if os.path.exists(spec_file):
+        os.remove(spec_file)
+    if os.path.exists(exe_file):
+        os.remove(exe_file)
+
+print("⚙️  Building executables...")
+
+# Build each app
+for app in APPS:
+    print(f"📦 Building {app['name']}...")
+    subprocess.run([
+        "pyinstaller",
+        app["entry"],
+        "--onefile",
+        "--name", app["name"],
+        "--distpath", DIST_PATH,
+        "--paths", "./app",
+        "--hidden-import=fastapi",
+        "--hidden-import=uvicorn",
+        "--hidden-import=sqlanydb",
+        "--hidden-import=python_jose",
+        "--hidden-import=jose",
+        "--hidden-import=app.routes.sync",
+        "--hidden-import=app.schemas",
+        "--hidden-import=app.db_utils",
+        "--hidden-import=app.token_utils",
+        "--hidden-import=app.logging_config",
+    ])
+    print(f"✅ Done: ./{app['name']}.exe")
+
+print("\n🎉 Build process finished.")
+
