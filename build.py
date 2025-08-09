@@ -33,6 +33,10 @@ for app in APPS:
     if os.path.exists(exe_file):
         os.remove(exe_file)
 
+print("⚙️  Installing required packages...")
+# Install netifaces for better network detection
+subprocess.run(["pip", "install", "netifaces"], check=True)
+
 print("⚙️  Building executables...")
 
 # Build each app
@@ -50,6 +54,8 @@ for app in APPS:
         "--hidden-import=sqlanydb",
         "--hidden-import=python_jose",
         "--hidden-import=jose",
+        "--hidden-import=netifaces",  
+        "--hidden-import=psutil",
         "--hidden-import=app.routes.sync",
         "--hidden-import=app.schemas",
         "--hidden-import=app.db_utils",
@@ -59,4 +65,8 @@ for app in APPS:
     print(f"✅ Done: ./{app['name']}.exe")
 
 print("\n🎉 Build process finished.")
-
+print("\n📋 Next steps:")
+print("1. Test both EXEs on the target machine")
+print("2. Make sure config.json is in the same folder")
+print("3. Check that Windows Firewall allows the apps")
+print("4. Verify SQL Anywhere DSN is configured correctly")

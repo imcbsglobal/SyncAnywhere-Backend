@@ -1,9 +1,12 @@
+# app/db_utils.py
+
 import sqlanydb
 import json
 import os
 import socket
 import logging
 import sys
+import netifaces  # You may need to install this: pip install netifaces
 
 logging.basicConfig(
     filename='app.log',
@@ -23,22 +26,71 @@ def get_config_path():
 
     return os.path.join(base_path, "config.json")
 
-
 CONFIG_PATH = get_config_path()
 
 # Hardcoded DB credentials 
 DB_USER = "dba"
 DB_PASSWORD = "(*$^)"
 
-def get_local_ip():
-    """Get the current local IP address dynamically"""
+def get_all_local_ips():
+    """Get all possible local IP addresses"""
+    ips = []
+    
+    # Method 1: Using netifaces (more reliable)
+    try:
+        for interface in netifaces.interfaces():
+            if interface.startswith('lo'):  # Skip loopback
+                continue
+            addresses = netifaces.ifaddresses(interface)
+            if netifaces.AF_INET in addresses:
+                for addr in addresses[netifaces.AF_INET]:
+                    ip = addr['addr']
+                    if not ip.startswith('127.') and not ip.startswith('169.254.'):
+                        ips.append(ip)
+    except Exception as e:
+        logging.warning(f"⚠️ netifaces method failed: {e}")
+    
+    # Method 2: Socket method (fallback)
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
-            local_ip = s.getsockname()[0]
-            return local_ip
-    except Exception:
-        return "127.0.0.1"  # Fallback to localhost
+            primary_ip = s.getsockname()[0]
+            if primary_ip not in ips and not primary_ip.startswith('127.'):
+                ips.append(primary_ip)
+    except Exception as e:
+        logging.warning(f"⚠️ Socket method failed: {e}")
+    
+    # Method 3: Hostname method (backup)
+    try:
+        hostname = socket.gethostname()
+        host_ip = socket.gethostbyname(hostname)
+        if host_ip not in ips and not host_ip.startswith('127.'):
+            ips.append(host_ip)
+    except Exception as e:
+        logging.warning(f"⚠️ Hostname method failed: {e}")
+    
+    # Fallback
+    if not ips:
+        ips.append("127.0.0.1")
+    
+    return ips
+
+def get_best_local_ip():
+    """Get the most likely IP address for mobile device connection"""
+    ips = get_all_local_ips()
+    
+    # Prefer 192.168.x.x (home networks) over others
+    wifi_ips = [ip for ip in ips if ip.startswith('192.168.')]
+    if wifi_ips:
+        return wifi_ips[0]
+    
+    # Then prefer 10.x.x.x (corporate networks)
+    corporate_ips = [ip for ip in ips if ip.startswith('10.')]
+    if corporate_ips:
+        return corporate_ips[0]
+    
+    # Return first available
+    return ips[0] if ips else "127.0.0.1"
 
 def debug_config_locations():
     """Debug function to find all possible config file locations"""
@@ -107,14 +159,18 @@ def load_config():
         logging.info(f"📋 Loaded config content: {config}")
         
         # Get current IP and update ONLY the IP field
-        current_ip = get_local_ip()
+        current_ip = get_best_local_ip()
+        all_ips = get_all_local_ips()
+        
         config["ip"] = current_ip
+        config["all_ips"] = all_ips  # Store all IPs for reference
         
         # Write back to config file
         with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
             
         logging.info(f"📡 Updated config with current IP: {current_ip}")
+        logging.info(f"📡 All available IPs: {all_ips}")
         logging.info(f"📋 Final DSN from config: {config.get('dsn', 'NOT SET')}")
         return config
         

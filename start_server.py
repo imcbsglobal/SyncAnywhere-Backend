@@ -7,6 +7,7 @@ import psutil
 import sys
 import logging
 import time
+from app.db_utils import get_all_local_ips, get_best_local_ip
 
 def setup_startup_logging():
     """Setup basic logging for startup process"""
@@ -68,29 +69,85 @@ def launch_sync_service():
 def show_startup_info():
     logger = logging.getLogger(__name__)
     
-    # Get current IP
-    try:
-        import socket
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            local_ip = s.getsockname()[0]
-    except:
-        local_ip = "localhost"
+    # Get all available IPs
+    all_ips = get_all_local_ips()
+    primary_ip = get_best_local_ip()
     
-    logger.info("=" * 60)
+    logger.info("=" * 80)
     logger.info("🌟 SYNCANYWHERE SERVER READY")
-    logger.info("=" * 60)
-    logger.info("🌐 Server URL: http://%s:8000", local_ip)
-    logger.info("🌐 Local URL: http://localhost:8000")
-    logger.info("📱 Mobile apps can connect to: %s:8000", local_ip)
-    logger.info("📁 Check 'logs' folder for detailed logs")
+    logger.info("=" * 80)
+    logger.info("📡 PRIMARY SERVER IP: %s:8000", primary_ip)
+    logger.info("🌐 LOCAL ACCESS: http://localhost:8000")
+    logger.info("")
+    logger.info("📱 MOBILE APP CONNECTION OPTIONS:")
+    for ip in all_ips:
+        logger.info("   • http://%s:8000", ip)
+    logger.info("")
+    logger.info("🔧 SETUP INSTRUCTIONS FOR MOBILE APP:")
+    logger.info("   1. Make sure your phone is on the same WiFi network")
+    logger.info("   2. Open your mobile app")
+    logger.info("   3. Try automatic scanning first")
+    logger.info("   4. If scanning fails, manually enter: %s", primary_ip)
+    logger.info("")
+    logger.info("🔍 TROUBLESHOOTING:")
+    logger.info("   • Check Windows Firewall (allow Python/SyncAnywhere)")
+    logger.info("   • Verify both devices are on same WiFi")
+    logger.info("   • Try each IP address listed above")
+    logger.info("   • Check antivirus software settings")
+    logger.info("")
+    logger.info("📁 Logs are saved in the 'logs' folder")
     logger.info("🛑 Press Ctrl+C to stop the server")
-    logger.info("=" * 60)
+    logger.info("=" * 80)
+
+def create_connection_info_file():
+    """Create a text file with connection info for easy reference"""
+    try:
+        all_ips = get_all_local_ips()
+        primary_ip = get_best_local_ip()
+        
+        info_content = f"""SyncAnywhere Server Connection Information
+====================================================
+
+Primary IP Address: {primary_ip}:8000
+
+All Available Connection URLs:
+"""
+        for ip in all_ips:
+            info_content += f"  • http://{ip}:8000\n"
+        
+        info_content += f"""
+Mobile App Setup:
+1. Ensure your phone is connected to the same WiFi network
+2. Open the mobile app
+3. Use automatic scanning OR manually enter: {primary_ip}
+4. Use password: IMC-MOBILE
+
+Troubleshooting:
+- Try each IP address listed above
+- Check Windows Firewall settings
+- Verify both devices are on the same WiFi
+- Disable antivirus temporarily if needed
+
+Server Status: http://{primary_ip}:8000/status
+
+Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        
+        with open("connection_info.txt", "w") as f:
+            f.write(info_content)
+        
+        logging.info("📄 Connection info saved to: connection_info.txt")
+        
+    except Exception as e:
+        logging.warning(f"⚠️ Could not create connection info file: {e}")
 
 if __name__ == "__main__":
     logger = setup_startup_logging()
     
     logger.info("🚀 Starting SyncAnywhere System...")
+    
+    # Create connection info file
+    create_connection_info_file()
     
     # Launch sync service first
     service_started = launch_sync_service()

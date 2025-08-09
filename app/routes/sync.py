@@ -6,6 +6,7 @@ from app.schemas import PairCheckInput, LoginInput
 from app.db_utils import get_connection, load_config
 from app.token_utils import create_access_token, SECRET_KEY, ALGORITHM
 from datetime import timedelta
+from datetime import datetime
 import traceback
 import subprocess
 import os
@@ -303,14 +304,31 @@ def upload_orders(request: Request, payload: dict = Body(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-# Test endpoint to check server status
+
 @router.get("/status")
 def get_status():
-    """Simple status check endpoint"""
+    """Enhanced status check endpoint with all IP addresses"""
     config = load_config()
+    
+    # Get all available IPs for the user to try
+    all_ips = config.get("all_ips", [])
+    primary_ip = config.get("ip", "unknown")
+    
     return {
         "status": "online",
         "message": "SyncAnywhere server is running",
-        "server_ip": config.get("ip", "unknown"),
-        "pair_password_hint": f"Password starts with: {PAIR_PASSWORD[:3]}..."
+        "primary_ip": primary_ip,
+        "all_available_ips": all_ips,
+        "connection_urls": [f"http://{ip}:8000" for ip in all_ips],
+        "pair_password_hint": f"Password starts with: {PAIR_PASSWORD[:3]}...",
+        "server_time": datetime.now().isoformat(),
+        "instructions": {
+            "mobile_setup": "Try connecting to any of the URLs listed in 'connection_urls'",
+            "troubleshooting": [
+                "Ensure both devices are on the same WiFi network",
+                "Try each IP address if the first one doesn't work",
+                "Check firewall settings on the server computer",
+                "Verify port 8000 is not blocked"
+            ]
+        }
     }
