@@ -1,0 +1,31 @@
+MOBILE APP CONNECTION INSTRUCTIONS
+========================================
+
+STEP 1: Make sure your phone is on the SAME WiFi network as this computer
+
+ STEP 2: Open your mobile app (IMCSync)
+
+ STEP 3: Try these IPs in order:
+
+PRIMARY IP (try this first):
+http://192.168.1.37:8000
+
+ALL AVAILABLE IPs:
+http://192.168.1.37:8000
+
+ PASSWORD: IMC-MOBILE
+
+ BROWSER TEST:
+Before using the mobile app, test in your computer's browser:
+http://192.168.1.37:8000/status
+
+You should see something like:
+{"status": "online", "message": "SyncAnywhere server is running"}
+
+ TROUBLESHOOTING:
+- If browser test fails: Check if server is running
+- If mobile app can't connect: Check Windows Firewall
+- Try each IP address listed above
+- Make sure both devices are on same WiFi (not guest network)
+
+Generated: 2025-08-09 17:31:52

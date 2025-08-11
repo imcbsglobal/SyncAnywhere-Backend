@@ -6,7 +6,16 @@ import os
 import socket
 import logging
 import sys
-import netifaces  # You may need to install this: pip install netifaces
+import subprocess
+import platform
+
+# Try to import netifaces, but don't fail if not available
+try:
+    import netifaces
+    HAS_NETIFACES = True
+except ImportError:
+    HAS_NETIFACES = False
+    logging.warning("⚠️ netifaces not available - using basic network detection")
 
 logging.basicConfig(
     filename='app.log',
@@ -33,24 +42,67 @@ DB_USER = "dba"
 DB_PASSWORD = "(*$^)"
 
 def get_all_local_ips():
-    """Get all possible local IP addresses"""
+    """Get all possible local IP addresses using multiple methods"""
     ips = []
     
-    # Method 1: Using netifaces (more reliable)
-    try:
-        for interface in netifaces.interfaces():
-            if interface.startswith('lo'):  # Skip loopback
-                continue
-            addresses = netifaces.ifaddresses(interface)
-            if netifaces.AF_INET in addresses:
-                for addr in addresses[netifaces.AF_INET]:
-                    ip = addr['addr']
-                    if not ip.startswith('127.') and not ip.startswith('169.254.'):
-                        ips.append(ip)
-    except Exception as e:
-        logging.warning(f"⚠️ netifaces method failed: {e}")
+    # Method 1: Using netifaces if available (most reliable)
+    if HAS_NETIFACES:
+        try:
+            for interface in netifaces.interfaces():
+                if interface.startswith('lo'):  # Skip loopback
+                    continue
+                addresses = netifaces.ifaddresses(interface)
+                if netifaces.AF_INET in addresses:
+                    for addr in addresses[netifaces.AF_INET]:
+                        ip = addr['addr']
+                        if not ip.startswith('127.') and not ip.startswith('169.254.'):
+                            if ip not in ips:
+                                ips.append(ip)
+        except Exception as e:
+            logging.warning(f"⚠️ netifaces method failed: {e}")
     
-    # Method 2: Socket method (fallback)
+    # Method 2: Platform-specific commands
+    try:
+        if platform.system() == "Windows":
+            # Windows ipconfig
+            result = subprocess.run(['ipconfig'], capture_output=True, text=True, timeout=10)
+            lines = result.stdout.split('\n')
+            for line in lines:
+                line = line.strip()
+                if 'IPv4 Address' in line and ':' in line:
+                    ip = line.split(':')[1].strip()
+                    if not ip.startswith('127.') and not ip.startswith('169.254.'):
+                        if ip not in ips:
+                            ips.append(ip)
+        else:
+            # Linux/Mac ifconfig or ip command
+            try:
+                result = subprocess.run(['ip', 'addr', 'show'], capture_output=True, text=True, timeout=10)
+                lines = result.stdout.split('\n')
+                for line in lines:
+                    if 'inet ' in line and 'scope global' in line:
+                        parts = line.strip().split()
+                        for part in parts:
+                            if '/' in part and not part.startswith('127.') and not part.startswith('169.254.'):
+                                ip = part.split('/')[0]
+                                if ip not in ips:
+                                    ips.append(ip)
+            except:
+                # Fallback to ifconfig
+                result = subprocess.run(['ifconfig'], capture_output=True, text=True, timeout=10)
+                lines = result.stdout.split('\n')
+                for line in lines:
+                    if 'inet ' in line and 'netmask' in line:
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            ip = parts[1]
+                            if not ip.startswith('127.') and not ip.startswith('169.254.'):
+                                if ip not in ips:
+                                    ips.append(ip)
+    except Exception as e:
+        logging.warning(f"⚠️ Platform-specific command failed: {e}")
+    
+    # Method 3: Socket method (fallback)
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
@@ -60,7 +112,7 @@ def get_all_local_ips():
     except Exception as e:
         logging.warning(f"⚠️ Socket method failed: {e}")
     
-    # Method 3: Hostname method (backup)
+    # Method 4: Hostname method (backup)
     try:
         hostname = socket.gethostname()
         host_ip = socket.gethostbyname(hostname)
@@ -69,17 +121,52 @@ def get_all_local_ips():
     except Exception as e:
         logging.warning(f"⚠️ Hostname method failed: {e}")
     
-    # Fallback
+    # Method 5: getaddrinfo method
+    try:
+        hostname = socket.gethostname()
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith('127.') and not ip.startswith('169.254.'):
+                if ip not in ips:
+                    ips.append(ip)
+    except Exception as e:
+        logging.warning(f"⚠️ getaddrinfo method failed: {e}")
+    
+    # Fallback - at least return localhost
     if not ips:
         ips.append("127.0.0.1")
+        logging.warning("⚠️ Only localhost IP found - mobile connection may not work")
     
+    # Sort IPs by priority (common home networks first)
+    def ip_priority(ip):
+        if ip.startswith('192.168.1.'):
+            return 1
+        elif ip.startswith('192.168.0.'):
+            return 2
+        elif ip.startswith('192.168.'):
+            return 3
+        elif ip.startswith('10.'):
+            return 4
+        elif ip.startswith('172.'):
+            return 5
+        else:
+            return 6
+    
+    ips.sort(key=ip_priority)
+    
+    logging.info(f"📡 Found {len(ips)} IP addresses: {ips}")
     return ips
 
 def get_best_local_ip():
     """Get the most likely IP address for mobile device connection"""
     ips = get_all_local_ips()
     
-    # Prefer 192.168.x.x (home networks) over others
+    # Prefer 192.168.1.x (most common home networks)
+    wifi_ips = [ip for ip in ips if ip.startswith('192.168.1.')]
+    if wifi_ips:
+        return wifi_ips[0]
+    
+    # Then prefer other 192.168.x.x
     wifi_ips = [ip for ip in ips if ip.startswith('192.168.')]
     if wifi_ips:
         return wifi_ips[0]
@@ -237,4 +324,9 @@ def test_connection():
 
 if __name__ == "__main__":
     # Run connection test when script is executed directly
+    print("🔍 Testing network detection...")
+    ips = get_all_local_ips()
+    print(f"Found IPs: {ips}")
+    print(f"Best IP: {get_best_local_ip()}")
+    print()
     test_connection()
